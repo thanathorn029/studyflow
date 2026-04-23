@@ -221,7 +221,7 @@ function AISummary({ tasks = [], subjects = [], todayMin = 0, isPro }) {
 - วิชา: ${subs}
 วิเคราะห์จุดแข็ง จุดต้องระวัง และคำแนะนำที่เป็นประโยชน์จริงๆ`;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=AIzaSyBzrcZrKW1pPdLEwT-a70xWRg92PPMgB3s", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] })

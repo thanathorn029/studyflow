@@ -37,7 +37,7 @@ export default function LandingPage() {
 
       <nav>
 
-<a href="#" className="nav-brand">
+<a href="/" className="nav-brand">
   <img
     src={logo}
     alt="logo"
@@ -323,17 +323,17 @@ export default function LandingPage() {
 
         <div className="footer-links">
 
-          <a href="#">
-            นโยบายความเป็นส่วนตัว
-          </a>
+<a href="/privacy">
+  นโยบายความเป็นส่วนตัว
+</a>
 
-          <a href="#">
-            ติดต่อเรา
-          </a>
+<a href="/contact">
+  ติดต่อเรา
+</a>
 
-          <a href="#">
-            Line OA
-          </a>
+<a href="https://line.me/">
+  Line OA
+</a>
 
         </div>
 
