@@ -1,0 +1,21 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0a0a08;
+  --bg2: #111110;
+  --card: #161614;
+  --border: #2a2a24;
+  --ink: #f0ede6;
+  --ink2: #888880;
+  --accent: #e8ff3c;
+}
+
+body {
+  font-family: 'Kanit', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
