@@ -46,17 +46,6 @@ const globalStyle = `
   }
 `;
 
-// ─── HOOKS ────────────────────────────────────────────────────────
-function useIsMobile() {
-  const [mobile, setMobile] = useState(window.innerWidth <= 768);
-  useEffect(() => {
-    const handler = () => setMobile(window.innerWidth <= 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-  return mobile;
-}
-
 // ─── COMPONENTS ───────────────────────────────────────────────────
 const Card = ({ children, style = {}, glow = false, className = "" }) => (
   <div className={className} style={{
@@ -100,38 +89,12 @@ const Btn = ({ children, variant = "primary", onClick, disabled, style = {}, ful
   );
 };
 
-// ─── PRO GATE COMPONENT ───────────────────────────────────────────
-function ProGate({ children, isPro, feature = "ฟีเจอร์นี้" }) {
-  if (isPro) return children;
-  return (
-    <div style={{ position: "relative" }}>
-      <div style={{ filter: "blur(4px)", pointerEvents: "none", userSelect: "none", opacity: 0.4 }}>
-        {children}
-      </div>
-      <div style={{
-        position: "absolute", inset: 0, display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", gap: 12,
-        background: "rgba(8,8,16,0.8)", borderRadius: 16, backdropFilter: "blur(4px)",
-      }}>
-        <div style={{ fontSize: 32 }}>⚡</div>
-        <div style={{ fontWeight: 700, fontSize: "1rem", textAlign: "center" }}>{feature}</div>
-        <div style={{ fontSize: "0.78rem", color: C.ink2, textAlign: "center" }}>สำหรับสมาชิก Pro เท่านั้น</div>
-        <Btn variant="pro" onClick={() => document.getElementById("upgrade-modal")?.classList.remove("hidden")}
-          style={{ padding: "8px 20px", fontSize: "0.8rem" }}>
-          ✨ อัปเกรดเป็น Pro — 49฿/เดือน
-        </Btn>
-      </div>
-    </div>
-  );
-}
-
 // ─── UPGRADE MODAL ────────────────────────────────────────────────
 function UpgradeModal({ onClose }) {
   const [loading, setLoading] = useState(false);
 
   const handleUpgrade = async () => {
     setLoading(true);
-    // TODO: เชื่อม Stripe จริงๆ
     setTimeout(() => {
       alert("🚀 กำลังเปิดหน้าชำระเงิน Stripe...\n\n(จะเชื่อมต่อ Stripe จริงๆ ในขั้นตอนต่อไปครับ)");
       setLoading(false);
@@ -220,16 +183,28 @@ function AISummary({ tasks = [], subjects = [], todayMin = 0, isPro }) {
 - งานค้าง: ${pending}
 - วิชา: ${subs}
 วิเคราะห์จุดแข็ง จุดต้องระวัง และคำแนะนำที่เป็นประโยชน์จริงๆ`;
+
     try {
-      const res = await fetch("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=AIzaSyBzrcZrKW1pPdLEwT-a70xWRg92PPMgB3s", {
+      // ดึง API Key จากไฟล์ .env
+      const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
+      
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] })
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: prompt }]
+          }]
+        })
       });
       const data = await res.json();
-      setSummary(data.content?.[0]?.text || "ไม่สามารถสร้างสรุปได้ครับ");
-    } catch { setSummary("⚠️ ไม่สามารถเชื่อมต่อ AI ได้ตอนนี้ครับ"); }
-    finally { setLoading(false); }
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      setSummary(aiResponse || "ไม่สามารถสร้างสรุปได้ครับ");
+    } catch { 
+      setSummary("⚠️ ไม่สามารถเชื่อมต่อ AI ได้ตอนนี้ครับ"); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   return (
@@ -259,7 +234,7 @@ function AISummary({ tasks = [], subjects = [], todayMin = 0, isPro }) {
                   <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${C.accent}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
                   <span style={{ color: C.ink2, fontSize: "0.82rem" }}>AI กำลังวิเคราะห์...</span>
                 </div>
-              ) : <p style={{ fontSize: "0.88rem", lineHeight: 1.8 }}>{summary}</p>}
+              ) : <p style={{ fontSize: "0.88rem", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{summary}</p>}
             </div>
           )}
         </div>
@@ -530,15 +505,26 @@ function Tasks({ isPro }) {
         </div>
       </Card>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+<div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         {[["all","ทั้งหมด"], ["pending","ค้างอยู่"], ["done","เสร็จแล้ว"]].map(([v, l]) => (
-          <button key={v} onClick={() => setFilter(v)} style={{
-            padding: "6px 14px", borderRadius: 8, border: "none", cursor: "pointer",
-            background: filter === v ? `${C.accent}20` : C.glass,
-            color: filter === v ? C.accent : C.ink2,
-            fontFamily: "'Space Grotesk', sans-serif", fontSize: "0.78rem", fontWeight: filter === v ? 600 : 400,
-            border: `1px solid ${filter === v ? C.accent+"40" : C.glassBorder}`,
-          }}>{l}</button>
+          <button 
+            key={v} 
+            onClick={() => setFilter(v)} 
+            style={{
+              padding: "6px 14px", 
+              borderRadius: 8, 
+              cursor: "pointer",
+              background: filter === v ? `${C.accent}20` : C.glass,
+              color: filter === v ? C.accent : C.ink2,
+              fontFamily: "'Space Grotesk', sans-serif", 
+              fontSize: "0.78rem", 
+              fontWeight: filter === v ? 600 : 400,
+              // รวมเหลืออันเดียว และใช้เงื่อนไขเช็ค
+              border: `1px solid ${filter === v ? C.accent + "40" : C.glassBorder}`,
+            }}
+          >
+            {l}
+          </button>
         ))}
       </div>
 
@@ -741,10 +727,9 @@ function ProPage({ isPro, setShowUpgrade }) {
 export default function Dashboard() {
   const [page, setPage] = useState("home");
   const [user, setUser] = useState(null);
-  const [isPro, setIsPro] = useState(false); // TODO: เชื่อม Stripe จริงๆ
+  const [isPro] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
