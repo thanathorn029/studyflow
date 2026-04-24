@@ -725,49 +725,74 @@ function ProPage({ isPro, setShowUpgrade }) {
 
 // ─── MAIN DASHBOARD ───────────────────────────────────────────────
 export default function Dashboard() {
-  const [page, setPage] = useState("home");
   const [user, setUser] = useState(null);
-  const [isPro] = useState(false);
-  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [view, setView] = useState("home"); // home, timer, tasks, gpa
+  const [isPro, setIsPro] = useState(false); // ปรับเป็น true เพื่อทดสอบฟีเจอร์ Pro
   const navigate = useNavigate();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) navigate("/login");
-      else setUser(session.user);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) navigate("/login");
-      else setUser(session.user);
-    });
-    return () => subscription.unsubscribe();
+    // 1. ตรวจสอบ Session
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) {
+        navigate("/login");
+      } else {
+        setUser(data.user);
+        // ตรวจสอบสถานะ Pro จาก Metadata (ถ้ามี)
+        setIsPro(data.user.app_metadata?.is_pro || false);
+      }
+    };
+    checkUser();
   }, [navigate]);
 
-  const handleLogout = async () => {
+  const logout = async () => {
     await supabase.auth.signOut();
     navigate("/");
   };
 
-  const nav = [
-    { id: "home", icon: "🏠", label: "หน้าหลัก" },
-    { id: "timer", icon: "⏱", label: "Timer" },
-    { id: "tasks", icon: "✅", label: "งาน" },
-    { id: "gpa", icon: "🎯", label: "GPA" },
-    { id: "pro", icon: "⚡", label: "Pro" },
-  ];
+  if (!user) return <div style={{ background: C.bg, height: "100vh" }} />;
 
-  const pages = {
-    home: <Home user={user} isPro={isPro} />,
-    timer: <Timer />,
-    tasks: <Tasks isPro={isPro} />,
-    gpa: <GPA isPro={isPro} />,
-    pro: <ProPage isPro={isPro} setShowUpgrade={setShowUpgrade} />,
-  };
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: C.bg }}>
+      <style>{globalStyle}</style>
 
-  if (!user) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: C.bg, color: C.ink2, fontFamily: "'Space Grotesk', sans-serif", flexDirection: "column", gap: 12 }}>
-      <div style={{ width: 36, height: 36, borderRadius: "50%", border: `3px solid ${C.accent}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
-      <span style={{ fontSize: "0.82rem" }}>กำลังโหลด...</span>
+      {/* Sidebar (Desktop) */}
+      <div className="sidebar" style={{
+        width: 260, borderRight: `1px solid ${C.glassBorder}`,
+        flexDirection: "column", padding: 24, gap: 8, position: "sticky", top: 0, height: "100vh"
+      }}>
+        <div style={{ fontSize: "1.5rem", fontWeight: 800, color: C.accent, marginBottom: 32 }}>StudyFlow.</div>
+        
+        <Btn variant={view === "home" ? "primary" : "ghost"} onClick={() => setView("home")} fullWidth style={{ textAlign: "left" }}>🏠 Home</Btn>
+        <Btn variant={view === "timer" ? "primary" : "ghost"} onClick={() => setView("timer")} fullWidth style={{ textAlign: "left" }}>⏱ Timer</Btn>
+        <Btn variant={view === "tasks" ? "primary" : "ghost"} onClick={() => setView("tasks")} fullWidth style={{ textAlign: "left" }}>✅ Tasks</Btn>
+        <Btn variant={view === "gpa" ? "primary" : "ghost"} onClick={() => setView("gpa")} fullWidth style={{ textAlign: "left" }}>🎯 GPA</Btn>
+        
+        <div style={{ marginTop: "auto" }}>
+          <Btn variant="danger" onClick={logout} fullWidth>🚪 ออกจากระบบ</Btn>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="main-content" style={{ flex: 1, padding: "40px 60px", maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+        {view === "home" && <Home user={user} isPro={isPro} />}
+        {view === "timer" && <Timer />}
+        {view === "tasks" && <Tasks isPro={isPro} />}
+        {view === "gpa" && <GPA isPro={isPro} />}
+      </main>
+
+      {/* Bottom Nav (Mobile) */}
+      <div className="bottom-nav" style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, height: 70,
+        background: "rgba(13,13,26,0.8)", backdropFilter: "blur(20px)",
+        borderTop: `1px solid ${C.glassBorder}`, zIndex: 100,
+        justifyContent: "space-around", alignItems: "center", padding: "0 10px"
+      }}>
+        <button onClick={() => setView("home")} style={{ background: "none", border: "none", color: view === "home" ? C.accent : C.ink2, fontSize: "1.2rem" }}>🏠</button>
+        <button onClick={() => setView("timer")} style={{ background: "none", border: "none", color: view === "timer" ? C.accent : C.ink2, fontSize: "1.2rem" }}>⏱</button>
+        <button onClick={() => setView("tasks")} style={{ background: "none", border: "none", color: view === "tasks" ? C.accent : C.ink2, fontSize: "1.2rem" }}>✅</button>
+        <button onClick={() => setView("gpa")} style={{ background: "none", border: "none", color: view === "gpa" ? C.accent : C.ink2, fontSize: "1.2rem" }}>🎯</button>
+      </div>
     </div>
   );
 
