@@ -1,305 +1,254 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 
-// ─── DESIGN SYSTEM ────────────────────────────────────────────────
-const T = {
-  void:    "#020408",
-  deep:    "#060d14",
-  panel:   "rgba(6,20,35,0.85)",
-  panelHi: "rgba(10,30,50,0.95)",
-  border:  "rgba(0,200,255,0.12)",
-  borderHi:"rgba(0,200,255,0.35)",
-  cyan:    "#00c8ff",
-  cyanDim: "rgba(0,200,255,0.15)",
-  cyanGlow:"rgba(0,200,255,0.4)",
-  violet:  "#7b2fff",
-  violetDi:"rgba(123,47,255,0.2)",
-  green:   "#00ff9d",
-  greenDim:"rgba(0,255,157,0.12)",
-  red:     "#ff2d55",
-  amber:   "#ffb800",
-  ink:     "#cde8ff",
-  ink2:    "#4a7a9b",
-  ink3:    "#1e4060",
+// ─── THEME ────────────────────────────────────────────────────────
+const themes = {
+  dark: {
+    bg: "#0f1117",
+    bg2: "#161b27",
+    card: "#1a2035",
+    cardHover: "#1e2640",
+    border: "#2a3352",
+    ink: "#e8eeff",
+    ink2: "#7b8db5",
+    ink3: "#3d4f75",
+    accent: "#6366f1",
+    accentLight: "rgba(99,102,241,0.15)",
+    accentGlow: "rgba(99,102,241,0.3)",
+    green: "#10d9a0",
+    greenLight: "rgba(16,217,160,0.12)",
+    red: "#f43f5e",
+    redLight: "rgba(244,63,94,0.12)",
+    yellow: "#f59e0b",
+    yellowLight: "rgba(245,158,11,0.12)",
+    blue: "#38bdf8",
+    blueLight: "rgba(56,189,248,0.12)",
+    shadow: "0 4px 24px rgba(0,0,0,0.4)",
+    shadowLg: "0 8px 48px rgba(0,0,0,0.5)",
+  },
+  light: {
+    bg: "#f8f9fe",
+    bg2: "#f0f2fa",
+    card: "#ffffff",
+    cardHover: "#f8f9fe",
+    border: "#e2e6f3",
+    ink: "#1a1f36",
+    ink2: "#5c6898",
+    ink3: "#b0b9d8",
+    accent: "#6366f1",
+    accentLight: "rgba(99,102,241,0.08)",
+    accentGlow: "rgba(99,102,241,0.2)",
+    green: "#059669",
+    greenLight: "rgba(5,150,105,0.08)",
+    red: "#e11d48",
+    redLight: "rgba(225,29,72,0.08)",
+    yellow: "#d97706",
+    yellowLight: "rgba(217,119,6,0.08)",
+    blue: "#0284c7",
+    blueLight: "rgba(2,132,199,0.08)",
+    shadow: "0 2px 12px rgba(0,0,0,0.06)",
+    shadowLg: "0 8px 32px rgba(0,0,0,0.1)",
+  }
 };
 
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
-
+// ─── GLOBAL STYLES ────────────────────────────────────────────────
+const getCSS = (t) => `
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: ${T.void};
-    color: ${T.ink};
-    font-family: 'Rajdhani', sans-serif;
-    overflow: hidden;
-  }
-
-  ::-webkit-scrollbar { width: 3px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: ${T.cyanDim}; border-radius: 99px; }
-
-  @keyframes scanline {
-    0% { transform: translateY(-100%); }
-    100% { transform: translateY(100vh); }
-  }
-  @keyframes pulse-cyan {
-    0%, 100% { opacity: 1; box-shadow: 0 0 8px ${T.cyanGlow}; }
-    50% { opacity: 0.4; box-shadow: 0 0 2px ${T.cyanGlow}; }
-  }
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.2; }
-  }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes slideRight { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+  body { background: ${t.bg}; color: ${t.ink}; font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: ${t.border}; border-radius: 99px; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes slideIn { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:translateX(0); } }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes glitch {
-    0%, 100% { clip-path: inset(0 0 100% 0); }
-    10% { clip-path: inset(30% 0 50% 0); transform: translate(-3px); }
-    20% { clip-path: inset(70% 0 10% 0); transform: translate(3px); }
-    30% { clip-path: inset(0 0 100% 0); }
-  }
-  @keyframes wave {
-    0%, 100% { d: path("M0,50 Q25,20 50,50 Q75,80 100,50"); }
-    50% { d: path("M0,50 Q25,80 50,50 Q75,20 100,50"); }
-  }
-  @keyframes blink { 0%, 90%, 100% { opacity: 1; } 95% { opacity: 0; } }
-  @keyframes gridFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
-  }
+  @keyframes popIn { from { opacity:0; transform:scale(0.92); } to { opacity:1; transform:scale(1); } }
+  @keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+  @keyframes countUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes ripple { from { transform:scale(0); opacity:0.6; } to { transform:scale(4); opacity:0; } }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  @keyframes progress { from{width:0} }
 
-  .sidebar-nav button:hover { background: rgba(0,200,255,0.06) !important; color: ${T.cyan} !important; }
+  .nav-btn:hover { background: ${t.accentLight} !important; color: ${t.accent} !important; }
+  .card-hover:hover { background: ${t.cardHover} !important; transform: translateY(-1px); box-shadow: ${t.shadowLg} !important; }
+  .task-row:hover { border-color: ${t.accent} !important; background: ${t.accentLight} !important; }
+  .mode-btn:hover { border-color: ${t.accent} !important; }
+  .input-field:focus { border-color: ${t.accent} !important; box-shadow: 0 0 0 3px ${t.accentGlow} !important; }
+  .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 8px 24px ${t.accentGlow} !important; }
+  .btn-ghost:hover { border-color: ${t.ink2} !important; color: ${t.ink} !important; }
 
-  /* Mobile */
   .bottom-nav { display: none; }
-  .sidebar-nav { display: flex; }
+  .sidebar { display: flex !important; }
 
   @media (max-width: 768px) {
-    .sidebar-nav { display: none !important; }
+    .sidebar { display: none !important; }
     .bottom-nav { display: flex !important; }
-    .main-scroll { padding: 12px !important; padding-bottom: 72px !important; }
-    .stat-row { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+    .main-area { padding: 16px !important; padding-bottom: 80px !important; }
+    .stat-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
     .home-grid { grid-template-columns: 1fr !important; }
     .gpa-top { grid-template-columns: 1fr !important; }
+    .timer-wrap { grid-template-columns: 1fr !important; }
   }
 `;
 
-// ─── REUSABLE COMPONENTS ──────────────────────────────────────────
-
-// Scanline overlay
-const Scanline = () => (
-  <div style={{
-    position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none",
-    overflow: "hidden", opacity: 0.03,
-  }}>
-    <div style={{
-      position: "absolute", left: 0, right: 0, height: "2px",
-      background: `linear-gradient(transparent, ${T.cyan}, transparent)`,
-      animation: "scanline 4s linear infinite",
-    }} />
-    <div style={{
-      position: "absolute", inset: 0,
-      backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,200,255,0.03) 2px, rgba(0,200,255,0.03) 4px)`,
-    }} />
-  </div>
-);
-
-// Corner decorations
-const Corner = ({ pos }) => {
-  const isTop = pos.includes("top");
-  const isLeft = pos.includes("left");
+// ─── BASE COMPONENTS ──────────────────────────────────────────────
+const Card = ({ children, style = {}, className = "", onClick }) => {
+  const [t] = useState(null);
   return (
-    <div style={{
-      position: "absolute",
-      [isTop ? "top" : "bottom"]: 0,
-      [isLeft ? "left" : "right"]: 0,
-      width: 16, height: 16,
-      borderTop: isTop ? `1px solid ${T.cyan}` : "none",
-      borderBottom: !isTop ? `1px solid ${T.cyan}` : "none",
-      borderLeft: isLeft ? `1px solid ${T.cyan}` : "none",
-      borderRight: !isLeft ? `1px solid ${T.cyan}` : "none",
-      opacity: 0.6,
-    }} />
+    <div className={`card-hover ${className}`} onClick={onClick} style={{
+      borderRadius: 16,
+      padding: 20,
+      transition: "all 0.2s ease",
+      cursor: onClick ? "pointer" : "default",
+      ...style,
+    }}>{children}</div>
   );
 };
 
-// Panel with corners
-const Panel = ({ children, style = {}, glow = false, className = "" }) => (
-  <div className={className} style={{
-    background: T.panel,
-    border: `1px solid ${glow ? T.borderHi : T.border}`,
-    borderRadius: 2,
-    backdropFilter: "blur(24px)",
-    position: "relative",
-    animation: "fadeIn 0.4s ease both",
-    boxShadow: glow
-      ? `0 0 40px ${T.cyanDim}, inset 0 0 40px rgba(0,200,255,0.02)`
-      : `0 4px 32px rgba(0,0,0,0.6), inset 0 0 20px rgba(0,200,255,0.01)`,
-    ...style,
-  }}>
-    <Corner pos="top-left" />
-    <Corner pos="top-right" />
-    <Corner pos="bottom-left" />
-    <Corner pos="bottom-right" />
-    {children}
-  </div>
-);
-
-// Mono label
-const Label = ({ children, color = T.ink2, style = {} }) => (
+const Badge = ({ children, color, bg }) => (
   <span style={{
-    fontFamily: "'Share Tech Mono', monospace",
-    fontSize: "0.6rem",
-    letterSpacing: "0.2em",
-    textTransform: "uppercase",
-    color,
-    ...style,
+    display: "inline-flex", alignItems: "center",
+    padding: "3px 10px", borderRadius: 99,
+    background: bg, color,
+    fontSize: "0.68rem", fontWeight: 600,
+    letterSpacing: "0.02em",
   }}>{children}</span>
 );
 
-// Status dot
-const Dot = ({ color = T.green, pulse = true }) => (
-  <span style={{
-    display: "inline-block",
-    width: 6, height: 6,
-    borderRadius: "50%",
-    background: color,
-    boxShadow: `0 0 6px ${color}`,
-    animation: pulse ? "pulse-dot 2s ease infinite" : "none",
-    flexShrink: 0,
-  }} />
-);
-
-// Button
-const Btn = ({ children, variant = "primary", onClick, disabled, style = {}, fullWidth = false }) => {
+const Btn = ({ children, variant = "primary", onClick, disabled, style = {}, fullWidth, size = "md" }) => {
+  const sizes = { sm: "6px 14px", md: "10px 20px", lg: "13px 28px" };
   const v = {
-    primary: { background: T.cyanDim, color: T.cyan, border: `1px solid ${T.borderHi}`, boxShadow: `0 0 16px ${T.cyanDim}` },
-    ghost:   { background: "transparent", color: T.ink2, border: `1px solid ${T.border}` },
-    danger:  { background: "rgba(255,45,85,0.1)", color: T.red, border: "1px solid rgba(255,45,85,0.3)" },
-    pro:     { background: `linear-gradient(135deg, ${T.violet}, #b44dff)`, color: "#fff", border: "none", boxShadow: `0 0 24px ${T.violetDi}` },
+    primary: { background: "#6366f1", color: "#fff", border: "none" },
+    ghost: { background: "transparent", border: "1px solid currentColor" },
+    danger: { background: "transparent", border: "1px solid #f43f5e", color: "#f43f5e" },
+    pro: { background: "linear-gradient(135deg, #6366f1, #a855f7)", color: "#fff", border: "none" },
   };
   return (
-    <button onClick={onClick} disabled={disabled} style={{
-      padding: "8px 18px",
-      borderRadius: 2,
-      cursor: disabled ? "not-allowed" : "pointer",
-      fontFamily: "'Rajdhani', sans-serif",
-      fontWeight: 600,
-      fontSize: "0.82rem",
-      letterSpacing: "0.08em",
-      transition: "all 0.2s",
-      opacity: disabled ? 0.4 : 1,
+    <button onClick={onClick} disabled={disabled} className={`btn-${variant}`} style={{
+      padding: sizes[size],
+      borderRadius: 10, cursor: disabled ? "not-allowed" : "pointer",
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontWeight: 600, fontSize: "0.82rem",
+      transition: "all 0.2s", opacity: disabled ? 0.5 : 1,
       width: fullWidth ? "100%" : "auto",
-      textTransform: "uppercase",
       ...v[variant], ...style,
     }}>{children}</button>
   );
 };
 
-// ─── LIVE CLOCK ───────────────────────────────────────────────────
-function LiveClock() {
-  const [t, setT] = useState(new Date());
-  useEffect(() => {
-    const id = setInterval(() => setT(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const pad = n => String(n).padStart(2, "0");
+// ─── MINI BAR CHART ───────────────────────────────────────────────
+function MiniChart({ data = [], color, height = 32 }) {
+  if (!data.length) return null;
+  const max = Math.max(...data, 1);
+  const days = ["จ","อ","พ","พฤ","ศ","ส","อา"];
   return (
-    <div style={{ textAlign: "right" }}>
-      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "1.4rem", color: T.cyan, letterSpacing: "0.1em", animation: "blink 1s step-end infinite" }}>
-        {pad(t.getHours())}:{pad(t.getMinutes())}:{pad(t.getSeconds())}
-      </div>
-      <Label color={T.ink3}>{t.toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short" })}</Label>
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height }}>
+      {data.map((v, i) => (
+        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, height: "100%", justifyContent: "flex-end" }}>
+          <div style={{
+            width: "100%", borderRadius: 3,
+            height: `${Math.max((v / max) * 100, 8)}%`,
+            background: i === data.length - 1
+              ? color
+              : `${color}50`,
+            transition: "height 0.6s ease",
+            animation: "progress 0.6s ease",
+          }} />
+        </div>
+      ))}
     </div>
   );
 }
 
-// ─── MINI WAVE CHART ──────────────────────────────────────────────
-function WaveChart({ data = [], color = T.cyan, height = 40 }) {
-  const w = 200, h = height;
-  if (!data.length) return null;
-  const max = Math.max(...data, 1);
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - (v / max) * h * 0.85}`).join(" ");
-  return (
-    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={`wg${color.slice(1)}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polyline points={`0,${h} ${pts} ${w},${h}`} fill={`url(#wg${color.slice(1)})`} stroke="none" />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
-    </svg>
-  );
-}
-
-// ─── RADIAL PROGRESS ──────────────────────────────────────────────
-function RadialProgress({ value = 0, max = 100, color = T.cyan, size = 90, label, sublabel }) {
-  const r = size / 2 - 8;
+// ─── RING PROGRESS ────────────────────────────────────────────────
+function Ring({ value = 0, max = 100, color, size = 80, strokeWidth = 6, children }) {
+  const r = (size - strokeWidth * 2) / 2;
   const circ = 2 * Math.PI * r;
-  const offset = circ * (1 - value / max);
+  const offset = circ * (1 - Math.min(value / max, 1));
   return (
     <div style={{ position: "relative", width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={T.ink3} strokeWidth="4" strokeDasharray={circ} />
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="4"
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={`${color}20`} strokeWidth={strokeWidth} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
           strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
-          style={{ filter: `drop-shadow(0 0 6px ${color})`, transition: "stroke-dashoffset 1s ease" }} />
+          style={{ transition: "stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)", filter: `drop-shadow(0 0 6px ${color}80)` }} />
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        {label && <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: size > 80 ? "1rem" : "0.75rem", color, lineHeight: 1 }}>{label}</div>}
-        {sublabel && <Label color={T.ink2} style={{ marginTop: 2 }}>{sublabel}</Label>}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ─── LIVE CLOCK ───────────────────────────────────────────────────
+function Clock({ theme: t }) {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => { const id = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(id); }, []);
+  const p = n => String(n).padStart(2, "0");
+  return (
+    <div style={{ textAlign: "right" }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.6rem", fontWeight: 500, color: t.accent, letterSpacing: "0.05em", lineHeight: 1 }}>
+        {p(now.getHours())}:{p(now.getMinutes())}<span style={{ opacity: 0.4 }}>:{p(now.getSeconds())}</span>
+      </div>
+      <div style={{ fontSize: "0.72rem", color: t.ink2, marginTop: 3 }}>
+        {now.toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "short" })}
       </div>
     </div>
   );
 }
 
 // ─── UPGRADE MODAL ────────────────────────────────────────────────
-function UpgradeModal({ onClose }) {
+function UpgradeModal({ onClose, theme: t }) {
   const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState("monthly");
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <Panel onClick={e => e.stopPropagation()} glow style={{ maxWidth: 440, width: "100%", padding: 32, animation: "fadeIn 0.3s ease" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 24, padding: 32, maxWidth: 440, width: "100%", animation: "popIn 0.3s ease", boxShadow: t.shadowLg }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "0.6rem", letterSpacing: "0.3em", color: T.cyan, marginBottom: 12 }}>SYSTEM UPGRADE</div>
-          <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "1.6rem", fontWeight: 900, color: T.ink, letterSpacing: "-0.02em" }}>
-            PRO <span style={{ color: T.cyan }}>ACCESS</span>
-          </div>
-          <p style={{ color: T.ink2, fontSize: "0.85rem", marginTop: 8 }}>ปลดล็อคทุกฟีเจอร์ ไม่มีข้อจำกัด</p>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: `linear-gradient(135deg, ${t.accent}, #a855f7)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 16px", boxShadow: `0 8px 24px ${t.accentGlow}` }}>⚡</div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.5rem", fontWeight: 800, letterSpacing: "-0.02em", color: t.ink }}>อัปเกรดเป็น Pro</div>
+          <p style={{ color: t.ink2, fontSize: "0.85rem", marginTop: 6 }}>ปลดล็อคทุกฟีเจอร์ ไม่มีข้อจำกัด</p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
-          {[["49฿", "/เดือน", T.cyan, "STANDARD"], ["399฿", "/ปี (ประหยัด 32%)", T.green, "OPTIMAL"]].map(([price, period, color, tag]) => (
-            <div key={tag} style={{ padding: 16, borderRadius: 2, border: `1px solid ${color}30`, background: `${color}08`, textAlign: "center" }}>
-              <Label color={color}>{tag}</Label>
-              <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "1.8rem", color, margin: "8px 0 2px" }}>{price}</div>
-              <Label color={T.ink2}>{period}</Label>
+
+        {/* Plan toggle */}
+        <div style={{ display: "flex", background: t.bg2, borderRadius: 12, padding: 4, marginBottom: 20 }}>
+          {[["monthly", "รายเดือน", "49฿"], ["yearly", "รายปี", "399฿"]].map(([id, label, price]) => (
+            <button key={id} onClick={() => setPlan(id)} style={{
+              flex: 1, padding: "10px 8px", borderRadius: 9, border: "none", cursor: "pointer",
+              background: plan === id ? t.card : "transparent",
+              color: plan === id ? t.ink : t.ink2,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontWeight: plan === id ? 600 : 400, fontSize: "0.82rem",
+              boxShadow: plan === id ? t.shadow : "none",
+              transition: "all 0.2s",
+            }}>
+              {label} <span style={{ color: plan === id ? t.accent : t.ink2, fontFamily: "'JetBrains Mono', monospace" }}>{price}</span>
+              {id === "yearly" && <span style={{ marginLeft: 6, fontSize: "0.6rem", color: t.green, background: t.greenLight, padding: "1px 6px", borderRadius: 99 }}>-32%</span>}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", gap: 10 }}>
+          {["✨ AI Study Coach วิเคราะห์การเรียน", "📚 วิชาและงานไม่จำกัด", "📊 สถิติเชิงลึกรายสัปดาห์", "📄 Export PDF รายงาน", "🔔 แจ้งเตือน Deadline อัตโนมัติ", "⚡ Priority Support"].map((f, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.85rem", color: t.ink2 }}>
+              <div style={{ width: 18, height: 18, borderRadius: 99, background: t.greenLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: t.green, flexShrink: 0 }}>✓</div>
+              {f}
             </div>
           ))}
         </div>
-        <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", gap: 8 }}>
-          {["✨ AI Study Coach — วิเคราะห์การเรียน", "📚 วิชาและงานไม่จำกัด", "📊 สถิติเชิงลึกรายสัปดาห์", "📄 Export PDF รายงาน", "🔔 แจ้งเตือน Deadline อัตโนมัติ"].map((f, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: "0.82rem", color: T.ink2 }}>
-              <Dot color={T.green} pulse={false} /> {f}
-            </div>
-          ))}
-        </div>
-        <Btn variant="pro" fullWidth onClick={() => { setLoading(true); setTimeout(() => { alert("🚀 Stripe Checkout — เร็วๆ นี้!"); setLoading(false); }, 800); }} disabled={loading} style={{ padding: 14, fontSize: "0.9rem" }}>
-          {loading ? "INITIALIZING..." : "⚡ UPGRADE NOW"}
+
+        <Btn variant="pro" fullWidth onClick={() => { setLoading(true); setTimeout(() => { alert("🚀 Stripe Checkout — เร็วๆ นี้!"); setLoading(false); }, 800); }} disabled={loading} size="lg" style={{ borderRadius: 12, fontSize: "0.9rem" }}>
+          {loading ? "⏳ กำลังโหลด..." : `🚀 อัปเกรด ${plan === "monthly" ? "49฿/เดือน" : "399฿/ปี"}`}
         </Btn>
-        <button onClick={onClose} style={{ width: "100%", marginTop: 10, background: "none", border: "none", color: T.ink3, cursor: "pointer", fontSize: "0.75rem", fontFamily: "'Share Tech Mono', monospace", letterSpacing: "0.1em" }}>
-          [ CANCEL ]
-        </button>
-      </Panel>
+        <p style={{ textAlign: "center", fontSize: "0.68rem", color: t.ink2, marginTop: 10 }}>ทดลองใช้ฟรี 30 วัน • ยกเลิกได้ทุกเมื่อ • PromptPay + บัตรเครดิต</p>
+        <button onClick={onClose} style={{ display: "block", margin: "8px auto 0", background: "none", border: "none", color: t.ink2, cursor: "pointer", fontSize: "0.78rem" }}>ยกเลิก</button>
+      </div>
     </div>
   );
 }
 
 // ─── AI COACH ─────────────────────────────────────────────────────
-function AICoach({ tasks, subjects, todayMin, isPro, onUpgrade }) {
+function AICoach({ tasks, subjects, todayMin, isPro, onUpgrade, theme: t }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -307,11 +256,11 @@ function AICoach({ tasks, subjects, todayMin, isPro, onUpgrade }) {
   const analyze = async () => {
     if (!isPro) { onUpgrade(); return; }
     setLoading(true); setOpen(true); setText("");
-    const pending = tasks.filter(t => !t.done).map(t => t.text).join(", ") || "ไม่มีงานค้าง";
+    const pending = tasks.filter(x => !x.done).map(x => x.text).join(", ") || "ไม่มีงานค้าง";
     const subs = subjects.map(s => `${s.name}(${s.grade || "?"})`).join(", ") || "ยังไม่มีวิชา";
-    const prompt = `คุณเป็น AI โค้ชการเรียนสำหรับนักศึกษาไทย วิเคราะห์ข้อมูลนี้แล้วสรุปเป็นภาษาไทย กระชับ ฉลาด (3-4 ประโยค):
+    const prompt = `คุณเป็น AI โค้ชการเรียนสำหรับนักศึกษาไทย วิเคราะห์ข้อมูลนี้แล้วสรุปเป็นภาษาไทย กระชับ ให้กำลังใจ (3-4 ประโยค):
 เวลาเรียนวันนี้: ${(todayMin/60).toFixed(1)}h | งานค้าง: ${pending} | วิชา: ${subs}
-วิเคราะห์จุดแข็ง จุดเสี่ยง และคำแนะนำที่ใช้ได้จริง`;
+วิเคราะห์จุดแข็ง จุดเสี่ยง คำแนะนำที่ใช้ได้จริง`;
     try {
       const key = process.env.REACT_APP_GEMINI_API_KEY;
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
@@ -320,266 +269,249 @@ function AICoach({ tasks, subjects, todayMin, isPro, onUpgrade }) {
       });
       const d = await res.json();
       setText(d.candidates?.[0]?.content?.parts?.[0]?.text || "ไม่สามารถวิเคราะห์ได้ครับ");
-    } catch { setText("⚠️ CONNECTION FAILED — ตรวจสอบ API Key ครับ"); }
+    } catch { setText("⚠️ ไม่สามารถเชื่อมต่อ AI ได้ตอนนี้ครับ"); }
     finally { setLoading(false); }
   };
 
   return (
-    <Panel glow style={{ padding: 20, marginBottom: 16, overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse 60% 40% at 0% 50%, ${T.violetDi} 0%, transparent 70%)`, pointerEvents: "none" }} />
-      <div style={{ position: "relative" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 2, border: `1px solid ${T.violet}60`, background: T.violetDi, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>✨</div>
-            <div>
-              <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "0.75rem", fontWeight: 700, color: T.ink, letterSpacing: "0.1em" }}>AI STUDY COACH</div>
-              <Label color={isPro ? T.violet : T.ink3}>{isPro ? "NEURAL ANALYSIS READY" : "🔒 PRO ACCESS REQUIRED"}</Label>
+    <div style={{ background: `linear-gradient(135deg, ${t.accent}15, #a855f715)`, border: `1px solid ${t.accent}30`, borderRadius: 16, padding: 20, marginBottom: 20, animation: "fadeUp 0.3s ease" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 12, background: `linear-gradient(135deg, ${t.accent}, #a855f7)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, boxShadow: `0 4px 16px ${t.accentGlow}` }}>✨</div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: t.ink }}>AI Study Coach</div>
+            <div style={{ fontSize: "0.72rem", color: isPro ? t.accent : t.ink2 }}>
+              {isPro ? "พร้อมวิเคราะห์การเรียนของคุณ" : "🔒 เฉพาะสมาชิก Pro"}
             </div>
           </div>
-          <Btn onClick={analyze} disabled={loading} variant={isPro ? "primary" : "pro"} style={{ fontSize: "0.72rem" }}>
-            {loading ? "ANALYZING..." : isPro ? "▶ ANALYZE" : "⚡ UPGRADE"}
-          </Btn>
         </div>
-        {open && (
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-            {loading ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${T.cyan}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
-                <Label color={T.ink2}>NEURAL PROCESSING...</Label>
-              </div>
-            ) : (
-              <p style={{ fontSize: "0.88rem", lineHeight: 1.8, color: T.ink, whiteSpace: "pre-wrap" }}>{text}</p>
-            )}
-          </div>
-        )}
+        <Btn onClick={analyze} disabled={loading} variant={isPro ? "primary" : "pro"} style={{ borderRadius: 10 }}>
+          {loading ? "⏳ กำลังวิเคราะห์..." : isPro ? "✨ วิเคราะห์ตอนนี้" : "⚡ อัปเกรด Pro"}
+        </Btn>
       </div>
-    </Panel>
+      {open && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${t.accent}20` }}>
+          {loading ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${t.accent}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
+              <span style={{ color: t.ink2, fontSize: "0.82rem" }}>AI กำลังวิเคราะห์ข้อมูลของคุณ...</span>
+            </div>
+          ) : (
+            <p style={{ fontSize: "0.88rem", lineHeight: 1.8, color: t.ink, animation: "fadeUp 0.4s ease" }}>{text}</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
 // ─── HOME PAGE ────────────────────────────────────────────────────
-function Home({ user, isPro, onUpgrade }) {
+function Home({ user, isPro, onUpgrade, theme: t }) {
   const [tasks, setTasks] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [todayMin, setTodayMin] = useState(0);
-  const [weekData, setWeekData] = useState([12, 25, 18, 40, 30, 15, 0]);
+  const [weekData, setWeekData] = useState([30, 45, 20, 60, 50, 25, 0]);
   const [miniSecs, setMiniSecs] = useState(25 * 60);
-  const [miniRunning, setMiniRunning] = useState(false);
-  const miniRef = useRef(null);
+  const [miniRun, setMiniRun] = useState(false);
+  const ref = useRef(null);
   const total = 25 * 60;
 
   useEffect(() => {
-    const load = async () => {
-      const { data: t } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
-      const { data: s } = await supabase.from("subjects").select("*");
+    (async () => {
+      const { data: tk } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+      const { data: sb } = await supabase.from("subjects").select("*");
       const today = new Date().toISOString().split("T")[0];
-      const { data: sess } = await supabase.from("sessions").select("minutes").gte("created_at", today);
-      if (t) setTasks(t);
-      if (s) setSubjects(s);
-      if (sess) {
-        const min = sess.reduce((sum, x) => sum + x.minutes, 0);
-        setTodayMin(min);
-        setWeekData(prev => { const n = [...prev]; n[6] = min; return n; });
-      }
-    };
-    load();
+      const { data: ss } = await supabase.from("sessions").select("minutes").gte("created_at", today);
+      if (tk) setTasks(tk);
+      if (sb) setSubjects(sb);
+      if (ss) { const m = ss.reduce((s, x) => s + x.minutes, 0); setTodayMin(m); setWeekData(p => { const n=[...p]; n[6]=m; return n; }); }
+    })();
   }, []);
 
   useEffect(() => {
-    if (miniRunning) miniRef.current = setInterval(() => setMiniSecs(s => s > 0 ? s - 1 : 0), 1000);
-    else clearInterval(miniRef.current);
-    return () => clearInterval(miniRef.current);
-  }, [miniRunning]);
+    if (miniRun) ref.current = setInterval(() => setMiniSecs(s => s > 0 ? s - 1 : 0), 1000);
+    else clearInterval(ref.current);
+    return () => clearInterval(ref.current);
+  }, [miniRun]);
 
   const pad = n => String(n).padStart(2, "0");
-  const gradeToGPA = g => ({ A: 4, "B+": 3.5, B: 3, "C+": 2.5, C: 2, "D+": 1.5, D: 1, F: 0 }[g] || 0);
-  const avgGPA = subjects.length > 0 ? (subjects.reduce((s, x) => s + gradeToGPA(x.grade), 0) / subjects.length).toFixed(2) : "0.00";
+  const gpa = g => ({ A:4, "B+":3.5, B:3, "C+":2.5, C:2, "D+":1.5, D:1, F:0 }[g] || 0);
+  const avgGPA = subjects.length ? (subjects.reduce((s, x) => s + gpa(x.grade), 0) / subjects.length).toFixed(2) : "0.00";
   const pending = tasks.filter(t => !t.done).length;
   const done = tasks.filter(t => t.done).length;
-  const streak = 7;
-  const focusH = (todayMin / 60).toFixed(1);
+
+  const stats = [
+    { label: "เวลาเรียนวันนี้", value: `${(todayMin/60).toFixed(1)}h`, sub: "เป้า 4h", color: t.accent, bg: t.accentLight, pct: Math.min((todayMin/60)/4*100, 100), chart: weekData },
+    { label: "งานค้าง", value: pending, sub: `${done} เสร็จแล้ว`, color: pending > 3 ? t.red : t.green, bg: pending > 3 ? t.redLight : t.greenLight, pct: tasks.length ? (done/tasks.length*100) : 0, chart: [2,3,5,4,6,7,done] },
+    { label: "GPA เฉลี่ย", value: avgGPA, sub: "เป้า 3.60", color: t.blue, bg: t.blueLight, pct: parseFloat(avgGPA)/4*100, chart: [3.0,3.1,3.2,3.3,3.2,3.4,parseFloat(avgGPA)||0] },
+    { label: "Streak", value: "7 วัน 🔥", sub: "ติดต่อกัน", color: t.yellow, bg: t.yellowLight, pct: 7/30*100, chart: [1,2,3,4,5,6,7] },
+  ];
 
   return (
-    <div style={{ animation: "fadeIn 0.3s ease" }}>
+    <div>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <Label color={T.ink3} style={{ display: "block", marginBottom: 4 }}>WELCOME BACK, OPERATOR</Label>
-          <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "clamp(1.2rem, 3vw, 1.8rem)", fontWeight: 900, color: T.ink, letterSpacing: "-0.02em", lineHeight: 1.1 }}>
-            {user?.user_metadata?.full_name || user?.email?.split("@")[0] || "STUDENT"}
-            <span style={{ color: T.cyan }}>_</span>
+          <div style={{ fontSize: "0.75rem", color: t.ink2, marginBottom: 4 }}>
+            {new Date().toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "clamp(1.4rem, 3vw, 2rem)", fontWeight: 800, color: t.ink, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+            สวัสดี, <span style={{ color: t.accent }}>{user?.user_metadata?.full_name || user?.email?.split("@")[0]}</span> 👋
           </div>
         </div>
-        <LiveClock />
+        <Clock theme={t} />
       </div>
 
-      {/* AI Coach */}
-      <AICoach tasks={tasks} subjects={subjects} todayMin={todayMin} isPro={isPro} onUpgrade={onUpgrade} />
+      <AICoach tasks={tasks} subjects={subjects} todayMin={todayMin} isPro={isPro} onUpgrade={onUpgrade} theme={t} />
 
-      {/* Stats row */}
-      <div className="stat-row" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
-        {[
-          { label: "FOCUS TIME", value: `${focusH}H`, sub: "TODAY", color: T.cyan, chart: weekData },
-          { label: "TASKS DONE", value: done, sub: `${pending} PENDING`, color: T.green, chart: [2,4,3,6,5,8,done] },
-          { label: "GPA INDEX", value: avgGPA, sub: "CURRENT", color: parseFloat(avgGPA) >= 3 ? T.green : T.amber, chart: [3.0,3.1,3.2,3.3,3.2,3.4,parseFloat(avgGPA)||0] },
-          { label: "STREAK", value: `${streak}🔥`, sub: "DAYS ACTIVE", color: T.amber, chart: [1,2,3,4,5,6,7] },
-        ].map((s, i) => (
-          <Panel key={i} style={{ padding: 14, animationDelay: `${i * 0.06}s` }}>
-            <Label color={T.ink3}>{s.label}</Label>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "clamp(1.2rem, 2.5vw, 1.8rem)", color: s.color, margin: "6px 0 2px", filter: `drop-shadow(0 0 8px ${s.color})` }}>{s.value}</div>
-            <Label color={T.ink2}>{s.sub}</Label>
-            <div style={{ marginTop: 8, opacity: 0.7 }}>
-              <WaveChart data={s.chart} color={s.color} height={28} />
+      {/* Stats */}
+      <div className="stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
+        {stats.map((s, i) => (
+          <div key={i} className="card-hover" style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: 16, boxShadow: t.shadow, transition: "all 0.2s", animationDelay: `${i*0.05}s`, animation: "fadeUp 0.4s ease both" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div style={{ fontSize: "0.72rem", color: t.ink2, fontWeight: 500 }}>{s.label}</div>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, boxShadow: `0 0 6px ${s.color}` }} />
             </div>
-          </Panel>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.6rem", fontWeight: 500, color: s.color, lineHeight: 1, marginBottom: 2, animation: "countUp 0.5s ease" }}>{s.value}</div>
+            <div style={{ fontSize: "0.68rem", color: t.ink2, marginBottom: 10 }}>{s.sub}</div>
+            <div style={{ height: 3, background: t.border, borderRadius: 99, overflow: "hidden", marginBottom: 8 }}>
+              <div style={{ height: "100%", width: `${s.pct}%`, background: s.color, borderRadius: 99, transition: "width 1s ease", animation: "progress 1s ease" }} />
+            </div>
+            <MiniChart data={s.chart} color={s.color} height={28} />
+          </div>
         ))}
       </div>
 
       {/* Main grid */}
-      <div className="home-grid" style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 12 }}>
-        {/* Tasks */}
-        <Panel style={{ padding: 18 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Dot color={pending > 3 ? T.red : T.green} />
-              <Label color={T.ink2}>MISSION QUEUE</Label>
-            </div>
-            <Label color={pending > 3 ? T.red : T.green}>{pending} ACTIVE</Label>
+      <div className="home-grid" style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 12 }}>
+        {/* Tasks preview */}
+        <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: 20, boxShadow: t.shadow }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>งานที่ยังค้างอยู่</div>
+            <div style={{ background: pending > 3 ? t.redLight : t.greenLight, color: pending > 3 ? t.red : t.green, fontSize: "0.72rem", fontWeight: 600, padding: "3px 10px", borderRadius: 99 }}>{pending} งาน</div>
           </div>
-          {tasks.filter(t => !t.done).slice(0, 5).length === 0 ? (
-            <div style={{ textAlign: "center", padding: "20px 0", color: T.ink2, fontSize: "0.85rem" }}>
-              <div style={{ fontSize: 24, marginBottom: 6 }}>✓</div>
-              ALL MISSIONS COMPLETE
+          {tasks.filter(x => !x.done).slice(0, 5).length === 0 ? (
+            <div style={{ textAlign: "center", padding: "24px 0", color: t.ink2 }}>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
+              <div style={{ fontSize: "0.85rem" }}>ไม่มีงานค้างแล้ว!</div>
             </div>
-          ) : tasks.filter(t => !t.done).slice(0, 5).map((t, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", marginBottom: 6, borderRadius: 2, background: "rgba(0,200,255,0.03)", border: `1px solid ${T.border}`, animation: `slideRight 0.3s ease ${i * 0.05}s both` }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.cyan, flexShrink: 0, boxShadow: `0 0 6px ${T.cyan}` }} />
-              <div style={{ flex: 1, fontSize: "0.82rem", fontWeight: 500 }}>{t.text}</div>
-              <Label color={T.ink3}>#{String(i + 1).padStart(2, "0")}</Label>
+          ) : tasks.filter(x => !x.done).slice(0, 5).map((task, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: t.bg2, marginBottom: 6, animation: `slideIn 0.3s ease ${i*0.05}s both` }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: t.accent, flexShrink: 0 }} />
+              <div style={{ flex: 1, fontSize: "0.84rem", fontWeight: 500 }}>{task.text}</div>
             </div>
           ))}
-        </Panel>
+        </div>
 
-        {/* Pomodoro */}
-        <Panel style={{ padding: 18, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
-          <Label color={T.ink3}>FOCUS PROTOCOL</Label>
-          <RadialProgress
-            value={miniSecs} max={total}
-            color={T.cyan} size={110}
-            label={`${pad(Math.floor(miniSecs / 60))}:${pad(miniSecs % 60)}`}
-            sublabel="FOCUS"
-          />
+        {/* Pomodoro widget */}
+        <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: 20, boxShadow: t.shadow, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+          <div style={{ fontSize: "0.72rem", color: t.ink2, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>Pomodoro Timer</div>
+          <Ring value={miniSecs} max={total} color={t.accent} size={110}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.3rem", fontWeight: 500, color: t.ink }}>{pad(Math.floor(miniSecs/60))}:{pad(miniSecs%60)}</div>
+            <div style={{ fontSize: "0.55rem", color: t.ink2, textTransform: "uppercase", letterSpacing: "0.08em" }}>focus</div>
+          </Ring>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn onClick={() => setMiniRunning(r => !r)} style={{ padding: "7px 14px", fontSize: "0.72rem" }}>
-              {miniRunning ? "⏸ PAUSE" : "▶ START"}
+            <Btn onClick={() => setMiniRun(r => !r)} style={{ borderRadius: 10, minWidth: 80 }}>
+              {miniRun ? "⏸ หยุด" : "▶ เริ่ม"}
             </Btn>
-            <Btn variant="ghost" onClick={() => { setMiniRunning(false); setMiniSecs(total); }} style={{ padding: "7px 10px" }}>↺</Btn>
+            <Btn variant="ghost" onClick={() => { setMiniRun(false); setMiniSecs(total); }} style={{ borderRadius: 10, color: t.ink2, borderColor: t.border }}>↺</Btn>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, width: "100%" }}>
-            {[["25m", "FOCUS"], ["5m", "SHORT"], ["15m", "LONG"]].map(([t2, l]) => (
-              <button key={l} onClick={() => { setMiniRunning(false); const m = parseInt(t2); setMiniSecs(m * 60); }} style={{ padding: "5px 4px", background: "transparent", border: `1px solid ${T.border}`, borderRadius: 2, color: T.ink2, fontFamily: "'Share Tech Mono', monospace", fontSize: "0.55rem", letterSpacing: "0.05em", cursor: "pointer" }}>
-                {t2}<br />{l}
-              </button>
-            ))}
-          </div>
-        </Panel>
+        </div>
       </div>
     </div>
   );
 }
 
 // ─── TIMER PAGE ───────────────────────────────────────────────────
-function TimerPage() {
+function TimerPage({ theme: t }) {
   const [secs, setSecs] = useState(25 * 60);
   const [total, setTotal] = useState(25 * 60);
-  const [running, setRunning] = useState(false);
-  const [mode, setMode] = useState("FOCUS");
+  const [run, setRun] = useState(false);
+  const [mode, setMode] = useState("โฟกัส");
   const [sessions, setSessions] = useState(0);
   const [history, setHistory] = useState([]);
   const ref = useRef(null);
 
-  useEffect(() => {
-    if (running) {
-      ref.current = setInterval(() => setSecs(prev => {
-        if (prev <= 1) {
-          clearInterval(ref.current); setRunning(false);
-          if (mode === "FOCUS") {
-            setSessions(n => n + 1);
-            const min = Math.floor(total / 60);
-            setHistory(h => [{ time: new Date().toLocaleTimeString("th"), min }, ...h.slice(0, 4)]);
-            supabase.from("sessions").insert({ minutes: min });
-          }
-          return 0;
-        }
-        return prev - 1;
-      }), 1000);
-    } else clearInterval(ref.current);
-    return () => clearInterval(ref.current);
-  }, [running, mode, total]);
+if (Notification) {
+  new Notification("⏰ StudyFlow", {
+    body: mode === "โฟกัส"
+      ? "หมดเวลา! พักสักครู่นะ 😊"
+      : "กลับมาโฟกัสได้แล้ว!"
+  });
+}
 
   const pad = n => String(n).padStart(2, "0");
   const modes = [
-    { label: "FOCUS", mins: 25, color: T.cyan },
-    { label: "SHORT BREAK", mins: 5, color: T.green },
-    { label: "LONG BREAK", mins: 15, color: T.violet },
+    { label: "โฟกัส", mins: 25, color: t.accent, emoji: "🧠" },
+    { label: "พักสั้น", mins: 5, color: t.green, emoji: "☕" },
+    { label: "พักยาว", mins: 15, color: t.blue, emoji: "🌿" },
   ];
 
   return (
-    <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <Label color={T.ink3} style={{ display: "block", marginBottom: 6 }}>FOCUS PROTOCOL</Label>
-      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "1.5rem", fontWeight: 900, marginBottom: 20 }}>POMODORO SYSTEM</div>
+    <div style={{ animation: "fadeUp 0.3s ease" }}>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.6rem", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 }}>⏱ จับเวลาเรียน</div>
+      <div style={{ color: t.ink2, fontSize: "0.82rem", marginBottom: 20 }}>วันนี้โฟกัสไปแล้ว <span style={{ color: t.accent, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{sessions}</span> session</div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16, maxWidth: 500 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16, maxWidth: 500 }}>
         {modes.map(m => (
-          <Panel key={m.label} onClick={() => { clearInterval(ref.current); setRunning(false); setTotal(m.mins * 60); setSecs(m.mins * 60); setMode(m.label); }}
-            style={{ padding: 12, textAlign: "center", cursor: "pointer", border: `1px solid ${mode === m.label ? m.color : T.border}`, background: mode === m.label ? `${m.color}08` : T.panel, boxShadow: mode === m.label ? `0 0 20px ${m.color}20` : "none" }}>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "1.2rem", color: mode === m.label ? m.color : T.ink2, marginBottom: 4 }}>{String(m.mins).padStart(2,"0")}:00</div>
-            <Label color={mode === m.label ? m.color : T.ink3}>{m.label}</Label>
-          </Panel>
+          <div key={m.label} className="mode-btn card-hover" onClick={() => { clearInterval(ref.current); setRun(false); setTotal(m.mins*60); setSecs(m.mins*60); setMode(m.label); }} style={{
+            padding: 14, borderRadius: 14, textAlign: "center", cursor: "pointer",
+            background: mode === m.label ? `${m.color}15` : t.card,
+            border: `1px solid ${mode === m.label ? m.color : t.border}`,
+            boxShadow: mode === m.label ? `0 0 20px ${m.color}20` : t.shadow,
+            transition: "all 0.2s",
+          }}>
+            <div style={{ fontSize: 20, marginBottom: 6 }}>{m.emoji}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1rem", fontWeight: 500, color: mode === m.label ? m.color : t.ink }}>{String(m.mins).padStart(2,"0")}:00</div>
+            <div style={{ fontSize: "0.68rem", color: t.ink2, marginTop: 2 }}>{m.label}</div>
+          </div>
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 12, maxWidth: 700 }}>
-        <Panel glow style={{ padding: 32, display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
-          <div style={{ position: "absolute", inset: 0, background: `radial-gradient(circle at 50% 50%, ${T.cyanDim} 0%, transparent 70%)`, pointerEvents: "none" }} />
-          <RadialProgress value={secs} max={total} color={T.cyan} size={180} label={`${pad(Math.floor(secs/60))}:${pad(secs%60)}`} sublabel={mode} />
-          <Label color={T.ink2}>SESSION {sessions + 1} — {sessions} COMPLETED TODAY</Label>
+      <div className="timer-wrap" style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: 16, maxWidth: 680 }}>
+        <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 20, padding: 36, display: "flex", flexDirection: "column", alignItems: "center", gap: 24, boxShadow: t.shadowLg }}>
+          <Ring value={secs} max={total} color={t.accent} size={200} strokeWidth={8}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "3rem", fontWeight: 500, color: t.ink, letterSpacing: "-0.02em" }}>{pad(Math.floor(secs/60))}:{pad(secs%60)}</div>
+            <div style={{ fontSize: "0.7rem", color: t.ink2, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>{mode}</div>
+          </Ring>
           <div style={{ display: "flex", gap: 10 }}>
-            <Btn onClick={() => setRunning(r => !r)} style={{ padding: "10px 24px", fontSize: "0.85rem" }}>
-              {running ? "⏸ PAUSE" : "▶ INITIATE"}
+            <Btn onClick={() => setRun(r => !r)} size="lg" style={{ borderRadius: 12, minWidth: 120 }}>
+              {run ? "⏸ หยุด" : "▶ เริ่มเรียน"}
             </Btn>
-            <Btn variant="ghost" onClick={() => { clearInterval(ref.current); setRunning(false); setSecs(total); }} style={{ padding: "10px 14px" }}>↺ RESET</Btn>
+            <Btn variant="ghost" onClick={() => { clearInterval(ref.current); setRun(false); setSecs(total); }} size="lg" style={{ borderRadius: 12, color: t.ink2, borderColor: t.border }}>↺</Btn>
           </div>
-        </Panel>
+        </div>
 
-        <Panel style={{ padding: 16 }}>
-          <Label color={T.ink3} style={{ display: "block", marginBottom: 12 }}>SESSION LOG</Label>
+        <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 20, padding: 20, boxShadow: t.shadow }}>
+          <div style={{ fontWeight: 700, fontSize: "0.85rem", marginBottom: 14 }}>ประวัติ Session</div>
           {history.length === 0 ? (
-            <div style={{ color: T.ink3, fontSize: "0.78rem", textAlign: "center", padding: "20px 0" }}>NO SESSIONS YET</div>
+            <div style={{ textAlign: "center", padding: "20px 0", color: t.ink2, fontSize: "0.8rem" }}>ยังไม่มี session<br />เริ่มเรียนได้เลยครับ!</div>
           ) : history.map((h, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${T.border}` }}>
-              <Label color={T.ink2}>{h.time}</Label>
-              <Label color={T.cyan}>{h.min}m</Label>
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${t.border}`, animation: "slideIn 0.3s ease" }}>
+              <div style={{ fontSize: "0.75rem", color: t.ink2 }}>{h.time}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.85rem", color: t.accent, fontWeight: 500 }}>{h.min} นาที</div>
             </div>
           ))}
-          <div style={{ marginTop: 16, padding: 12, background: T.cyanDim, borderRadius: 2 }}>
-            <Label color={T.ink2} style={{ display: "block", marginBottom: 4 }}>TODAY TOTAL</Label>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "1.4rem", color: T.cyan }}>
-              {history.reduce((s, h) => s + h.min, 0)}m
+          {history.length > 0 && (
+            <div style={{ marginTop: 14, padding: 12, background: t.accentLight, borderRadius: 10 }}>
+              <div style={{ fontSize: "0.68rem", color: t.ink2, marginBottom: 4 }}>รวมวันนี้</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.4rem", color: t.accent, fontWeight: 500 }}>
+                {history.reduce((s, h) => s + h.min, 0)} นาที
+              </div>
             </div>
-          </div>
-        </Panel>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // ─── TASKS PAGE ───────────────────────────────────────────────────
-function TasksPage({ isPro }) {
+function TasksPage({ isPro, onUpgrade, theme: t }) {
   const [tasks, setTasks] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("ALL");
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => { load(); }, []);
 
@@ -592,77 +524,84 @@ function TasksPage({ isPro }) {
 
   const add = async () => {
     if (!input.trim()) return;
-    if (!isPro && tasks.length >= 10) { alert("🔒 FREE LIMIT: 10 MISSIONS\nUpgrade to Pro for unlimited!"); return; }
+    if (!isPro && tasks.length >= 10) { onUpgrade(); return; }
     const { data } = await supabase.from("tasks").insert({ text: input.trim(), done: false }).select().single();
-    if (data) setTasks(prev => [data, ...prev]);
+    if (data) setTasks(p => [data, ...p]);
     setInput("");
   };
 
   const toggle = async (id, done) => {
     await supabase.from("tasks").update({ done: !done }).eq("id", id);
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !done } : t));
+    setTasks(p => p.map(x => x.id === id ? { ...x, done: !done } : x));
   };
 
   const del = async (id) => {
     await supabase.from("tasks").delete().eq("id", id);
-    setTasks(prev => prev.filter(t => t.id !== id));
+    setTasks(p => p.filter(x => x.id !== id));
   };
 
-  const filters = ["ALL", "ACTIVE", "DONE"];
-  const filtered = filter === "ALL" ? tasks : filter === "ACTIVE" ? tasks.filter(t => !t.done) : tasks.filter(t => t.done);
-  const done = tasks.filter(t => t.done).length;
-  const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+  const filtered = filter === "all" ? tasks : filter === "pending" ? tasks.filter(x => !x.done) : tasks.filter(x => x.done);
+  const done = tasks.filter(x => x.done).length;
+  const pct = tasks.length ? Math.round(done / tasks.length * 100) : 0;
 
   return (
-    <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <Label color={T.ink3} style={{ display: "block", marginBottom: 6 }}>MISSION CONTROL</Label>
-      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "1.5rem", fontWeight: 900, marginBottom: 6 }}>TASK MATRIX</div>
+    <div style={{ animation: "fadeUp 0.3s ease" }}>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.6rem", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 }}>✅ งานที่ต้องทำ</div>
+      <div style={{ color: t.ink2, fontSize: "0.82rem", marginBottom: 16 }}>เสร็จแล้ว {done}/{tasks.length} รายการ {!isPro && <span style={{ color: t.accent }}>({tasks.length}/10 Free)</span>}</div>
+
+      {/* Progress */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        <Label color={T.ink2}>{done}/{tasks.length} COMPLETE</Label>
-        <div style={{ flex: 1, height: 2, background: T.ink3, borderRadius: 99, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${T.cyan}, ${T.green})`, boxShadow: `0 0 8px ${T.cyan}`, transition: "width 0.6s ease" }} />
+        <div style={{ flex: 1, height: 6, background: t.border, borderRadius: 99, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: `linear-gradient(90deg, ${t.accent}, ${t.green})`, borderRadius: 99, transition: "width 0.6s ease" }} />
         </div>
-        <Label color={T.cyan}>{pct}%</Label>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.8rem", color: t.accent, fontWeight: 500, minWidth: 36 }}>{pct}%</div>
       </div>
 
-      <Panel style={{ padding: 14, marginBottom: 12 }}>
+      {/* Input */}
+      <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: t.shadow }}>
         <div style={{ display: "flex", gap: 8 }}>
           <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
-            placeholder="ADD NEW MISSION..."
-            style={{ flex: 1, padding: "10px 14px", background: "rgba(0,200,255,0.04)", border: `1px solid ${T.border}`, borderRadius: 2, color: T.ink, fontFamily: "'Rajdhani', sans-serif", fontSize: "0.9rem", outline: "none", letterSpacing: "0.05em" }} />
-          <Btn onClick={add} style={{ padding: "10px 16px", whiteSpace: "nowrap" }}>+ ADD</Btn>
+            placeholder="เพิ่มงานใหม่... กด Enter"
+            className="input-field"
+            style={{ flex: 1, padding: "10px 14px", background: t.bg2, border: `1px solid ${t.border}`, borderRadius: 10, color: t.ink, fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "0.85rem", outline: "none", transition: "all 0.2s" }} />
+          <Btn onClick={add} style={{ borderRadius: 10, whiteSpace: "nowrap" }}>+ เพิ่ม</Btn>
         </div>
-      </Panel>
+      </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        {filters.map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{
-            padding: "5px 14px", borderRadius: 2, border: `1px solid ${filter === f ? T.cyan : T.border}`,
-            background: filter === f ? T.cyanDim : "transparent",
-            color: filter === f ? T.cyan : T.ink2,
-            fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", letterSpacing: "0.1em", cursor: "pointer",
-          }}>{f}</button>
+      {/* Filter tabs */}
+      <div style={{ display: "flex", background: t.card, border: `1px solid ${t.border}`, borderRadius: 12, padding: 4, marginBottom: 14, width: "fit-content", boxShadow: t.shadow }}>
+        {[["all", "ทั้งหมด", tasks.length], ["pending", "ค้างอยู่", tasks.filter(x=>!x.done).length], ["done", "เสร็จแล้ว", done]].map(([v, l, count]) => (
+          <button key={v} onClick={() => setFilter(v)} style={{
+            padding: "7px 16px", borderRadius: 9, border: "none", cursor: "pointer",
+            background: filter === v ? t.accent : "transparent",
+            color: filter === v ? "#fff" : t.ink2,
+            fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "0.78rem", fontWeight: filter === v ? 600 : 400,
+            transition: "all 0.2s", display: "flex", alignItems: "center", gap: 6,
+          }}>
+            {l}
+            <span style={{ background: filter === v ? "rgba(255,255,255,0.25)" : t.border, color: filter === v ? "#fff" : t.ink2, borderRadius: 99, padding: "0px 6px", fontSize: "0.65rem", fontFamily: "'JetBrains Mono', monospace" }}>{count}</span>
+          </button>
         ))}
       </div>
 
-      {loading ? <div style={{ textAlign: "center", padding: 40, color: T.ink2 }}>LOADING MISSIONS...</div>
-        : filtered.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: T.ink2 }}>NO MISSIONS IN THIS SECTOR</div>
+      {loading ? <div style={{ textAlign: "center", padding: 40, color: t.ink2 }}>⏳ กำลังโหลด...</div>
+        : filtered.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: t.ink2 }}>🎉 ไม่มีงานในหมวดนี้!</div>
         : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {filtered.map((t, i) => (
-              <div key={t.id} onClick={() => toggle(t.id, t.done)} style={{
-                display: "flex", alignItems: "center", gap: 12, padding: "11px 14px",
-                borderRadius: 2, cursor: "pointer", transition: "all 0.2s",
-                border: `1px solid ${t.done ? T.green + "30" : T.border}`,
-                background: t.done ? `${T.green}05` : "rgba(0,200,255,0.02)",
-                animation: `slideRight 0.3s ease ${i * 0.03}s both`,
+            {filtered.map((task, i) => (
+              <div key={task.id} className="task-row" onClick={() => toggle(task.id, task.done)} style={{
+                display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 12,
+                border: `1px solid ${task.done ? t.green+"30" : t.border}`,
+                background: task.done ? t.greenLight : t.card,
+                cursor: "pointer", transition: "all 0.2s",
+                boxShadow: t.shadow,
+                animation: `slideIn 0.3s ease ${i*0.03}s both`,
               }}>
-                <div style={{ width: 18, height: 18, borderRadius: 2, border: `1px solid ${t.done ? T.green : T.border}`, background: t.done ? T.green : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: T.void, flexShrink: 0, boxShadow: t.done ? `0 0 8px ${T.green}` : "none" }}>
-                  {t.done ? "✓" : ""}
+                <div style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${task.done ? t.green : t.border}`, background: task.done ? t.green : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", flexShrink: 0, transition: "all 0.2s", boxShadow: task.done ? `0 0 10px ${t.green}50` : "none" }}>
+                  {task.done ? "✓" : ""}
                 </div>
-                <Label color={T.ink3} style={{ width: 28 }}>#{String(i + 1).padStart(2,"0")}</Label>
-                <div style={{ flex: 1, fontSize: "0.88rem", fontWeight: 500, textDecoration: t.done ? "line-through" : "none", color: t.done ? T.ink2 : T.ink }}>{t.text}</div>
-                <button onClick={e => { e.stopPropagation(); del(t.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: T.ink3, fontSize: "0.72rem", padding: "2px 6px", fontFamily: "'Share Tech Mono', monospace" }}>DEL</button>
+                <div style={{ flex: 1, fontSize: "0.88rem", fontWeight: 500, textDecoration: task.done ? "line-through" : "none", color: task.done ? t.ink2 : t.ink }}>{task.text}</div>
+                <button onClick={e => { e.stopPropagation(); del(task.id); }} style={{ background: "none", border: "none", cursor: "pointer", color: t.ink3, fontSize: "0.75rem", padding: "4px 8px", borderRadius: 6, opacity: 0 }} className="del-btn">✕</button>
               </div>
             ))}
           </div>
@@ -672,7 +611,7 @@ function TasksPage({ isPro }) {
 }
 
 // ─── GPA PAGE ─────────────────────────────────────────────────────
-function GPAPage({ isPro }) {
+function GPAPage({ isPro, onUpgrade, theme: t }) {
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -689,150 +628,150 @@ function GPAPage({ isPro }) {
 
   const gradeMap = { A: 4, "B+": 3.5, B: 3, "C+": 2.5, C: 2, "D+": 1.5, D: 1, F: 0 };
   const gpa = g => gradeMap[g] || 0;
-  const gColor = g => { const v = gpa(g); return v >= 3.5 ? T.green : v >= 2.5 ? T.cyan : v >= 2 ? T.amber : T.red; };
+  const gColor = g => { const v = gpa(g); return v >= 3.5 ? t.green : v >= 2.5 ? t.blue : v >= 2 ? t.yellow : t.red; };
   const avg = subjects.length ? (subjects.reduce((s, x) => s + gpa(x.grade), 0) / subjects.length).toFixed(2) : "0.00";
-  const avgColor = parseFloat(avg) >= 3.5 ? T.green : parseFloat(avg) >= 3 ? T.cyan : parseFloat(avg) >= 2 ? T.amber : T.red;
+  const avgColor = parseFloat(avg) >= 3.5 ? t.green : parseFloat(avg) >= 3 ? t.blue : parseFloat(avg) >= 2 ? t.yellow : t.red;
 
-  const addSubject = async () => {
+  const addSub = async () => {
     if (!form.name) return;
-    if (!isPro && subjects.length >= 5) { alert("🔒 FREE LIMIT: 5 SUBJECTS\nUpgrade to Pro!"); return; }
+    if (!isPro && subjects.length >= 5) { onUpgrade(); return; }
     const { data } = await supabase.from("subjects").insert(form).select().single();
-    if (data) setSubjects(prev => [...prev, data]);
+    if (data) setSubjects(p => [...p, data]);
     setForm({ name: "", grade: "" }); setShowForm(false);
   };
 
   const del = async (id) => {
     await supabase.from("subjects").delete().eq("id", id);
-    setSubjects(prev => prev.filter(s => s.id !== id));
+    setSubjects(p => p.filter(x => x.id !== id));
   };
 
   return (
-    <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <Label color={T.ink3} style={{ display: "block", marginBottom: 6 }}>ACADEMIC ANALYTICS</Label>
-      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "1.5rem", fontWeight: 900, marginBottom: 20 }}>GPA COMMAND</div>
+    <div style={{ animation: "fadeUp 0.3s ease" }}>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.6rem", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 }}>🎯 เป้าหมาย GPA</div>
+      <div style={{ color: t.ink2, fontSize: "0.82rem", marginBottom: 20 }}>ติดตามผลการเรียนรายวิชา {!isPro && `· ${subjects.length}/5 วิชา (Free)`}</div>
 
-      <div className="gpa-top" style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <Panel glow style={{ padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-          <Label color={T.ink3}>GRADE POINT AVG</Label>
-          <RadialProgress value={parseFloat(avg)} max={4} color={avgColor} size={110} label={avg} sublabel="GPA" />
-          <div style={{ height: 3, width: "100%", background: T.ink3, borderRadius: 99, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${(parseFloat(avg)/4)*100}%`, background: avgColor, boxShadow: `0 0 8px ${avgColor}`, transition: "width 1s ease" }} />
-          </div>
-        </Panel>
+      <div className="gpa-top" style={{ display: "grid", gridTemplateColumns: "180px 1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+        {/* GPA Ring */}
+        <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, boxShadow: t.shadow }}>
+          <Ring value={parseFloat(avg)} max={4} color={avgColor} size={110} strokeWidth={7}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "1.5rem", fontWeight: 500, color: avgColor }}>{avg}</div>
+            <div style={{ fontSize: "0.55rem", color: t.ink2, textTransform: "uppercase", letterSpacing: "0.1em" }}>GPA</div>
+          </Ring>
+          <div style={{ fontSize: "0.72rem", color: t.ink2, textAlign: "center" }}>GPA เฉลี่ย</div>
+        </div>
+
         {[
-          { num: subjects.length, label: "SUBJECTS", color: T.cyan, icon: "📚" },
-          { num: subjects.filter(s => gpa(s.grade) >= 3.5).length, label: "GRADE A", color: T.green, icon: "⭐" },
-          { num: subjects.filter(s => gpa(s.grade) < 2 && s.grade).length, label: "WARNING", color: T.red, icon: "⚠️" },
+          { num: subjects.length, label: "วิชาทั้งหมด", color: t.blue, bg: t.blueLight, icon: "📚" },
+          { num: subjects.filter(s => gpa(s.grade) >= 3.5).length, label: "ได้เกรด A", color: t.green, bg: t.greenLight, icon: "⭐" },
+          { num: subjects.filter(s => gpa(s.grade) < 2 && s.grade).length, label: "ต้องระวัง", color: t.red, bg: t.redLight, icon: "⚠️" },
         ].map((s, i) => (
-          <Panel key={i} style={{ padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <div key={i} style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: t.shadow }}>
             <div style={{ fontSize: 24 }}>{s.icon}</div>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "2.2rem", color: s.color, filter: `drop-shadow(0 0 10px ${s.color})` }}>{s.num}</div>
-            <Label color={T.ink2}>{s.label}</Label>
-          </Panel>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "2rem", fontWeight: 500, color: s.color }}>{s.num}</div>
+            <div style={{ fontSize: "0.72rem", color: t.ink2 }}>{s.label}</div>
+          </div>
         ))}
       </div>
 
-      <Panel style={{ padding: 18 }}>
+      <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: 20, boxShadow: t.shadow }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Dot color={T.cyan} />
-            <Label color={T.ink2}>SUBJECT DATABASE {!isPro && `— ${subjects.length}/5 FREE`}</Label>
-          </div>
-          <Btn onClick={() => setShowForm(!showForm)} style={{ padding: "6px 14px", fontSize: "0.72rem" }}>+ ADD SUBJECT</Btn>
+          <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>รายวิชา</div>
+          <Btn onClick={() => setShowForm(!showForm)} size="sm" style={{ borderRadius: 8 }}>+ เพิ่มวิชา</Btn>
         </div>
 
         {showForm && (
-          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", padding: 12, background: T.cyanDim, borderRadius: 2, border: `1px solid ${T.border}` }}>
-            <input placeholder="SUBJECT NAME (e.g. CS211)" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-              style={{ flex: 2, minWidth: 120, padding: "8px 12px", background: "rgba(0,0,0,0.4)", border: `1px solid ${T.border}`, borderRadius: 2, color: T.ink, fontFamily: "'Rajdhani', sans-serif", fontSize: "0.85rem", outline: "none" }} />
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", padding: 14, background: t.bg2, borderRadius: 12 }}>
+            <input placeholder="ชื่อวิชา เช่น CS211" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+              className="input-field"
+              style={{ flex: 2, minWidth: 120, padding: "9px 12px", background: t.card, border: `1px solid ${t.border}`, borderRadius: 10, color: t.ink, fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "0.85rem", outline: "none" }} />
             <select value={form.grade} onChange={e => setForm({ ...form, grade: e.target.value })}
-              style={{ flex: 1, minWidth: 80, padding: "8px 10px", background: T.deep, border: `1px solid ${T.border}`, borderRadius: 2, color: T.ink, fontFamily: "'Share Tech Mono', monospace", fontSize: "0.8rem" }}>
-              <option value="">GRADE</option>
+              style={{ flex: 1, minWidth: 90, padding: "9px 12px", background: t.card, border: `1px solid ${t.border}`, borderRadius: 10, color: t.ink, fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "0.85rem" }}>
+              <option value="">เกรด</option>
               {Object.keys(gradeMap).map(g => <option key={g}>{g}</option>)}
             </select>
-            <Btn onClick={addSubject} style={{ padding: "8px 14px" }}>SAVE</Btn>
+            <Btn onClick={addSub} style={{ borderRadius: 10 }}>บันทึก</Btn>
           </div>
         )}
 
-        {loading ? <div style={{ textAlign: "center", padding: 20, color: T.ink2 }}>LOADING DATABASE...</div>
-          : subjects.length === 0 ? <div style={{ textAlign: "center", padding: 20, color: T.ink2 }}>NO SUBJECTS REGISTERED</div>
+        {loading ? <div style={{ textAlign: "center", padding: 20, color: t.ink2 }}>⏳ กำลังโหลด...</div>
+          : subjects.length === 0 ? <div style={{ textAlign: "center", padding: 20, color: t.ink2, fontSize: "0.85rem" }}>กด "+ เพิ่มวิชา" เพื่อเริ่มต้นครับ</div>
           : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {subjects.map((s, i) => (
-                <div key={i} style={{ padding: "12px 14px", border: `1px solid ${T.border}`, borderRadius: 2, background: "rgba(0,200,255,0.02)", animation: `slideRight 0.3s ease ${i*0.04}s both` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                <div key={i} style={{ padding: "14px 16px", background: t.bg2, borderRadius: 12, animation: `slideIn 0.3s ease ${i*0.04}s both`, border: `1px solid ${t.border}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.name}</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <Label color={T.ink3}>#{String(i+1).padStart(2,"0")}</Label>
-                      <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.name}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.85rem", color: gColor(s.grade), padding: "2px 10px", border: `1px solid ${gColor(s.grade)}40`, background: `${gColor(s.grade)}10` }}>
+                      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "0.8rem", color: gColor(s.grade), background: `${gColor(s.grade)}15`, padding: "3px 10px", borderRadius: 99, fontWeight: 500 }}>
                         {s.grade || "?"} · {gpa(s.grade).toFixed(1)}
                       </div>
-                      <button onClick={() => del(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: T.ink3, fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem" }}>DEL</button>
+                      <button onClick={() => del(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: t.ink3, fontSize: "0.75rem" }}>✕</button>
                     </div>
                   </div>
-                  <div style={{ height: 2, background: T.ink3, borderRadius: 99, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${(gpa(s.grade)/4)*100}%`, background: gColor(s.grade), boxShadow: `0 0 6px ${gColor(s.grade)}`, transition: "width 1s ease" }} />
+                  <div style={{ height: 4, background: t.border, borderRadius: 99, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${(gpa(s.grade)/4)*100}%`, background: gColor(s.grade), borderRadius: 99, transition: "width 1s ease", boxShadow: `0 0 6px ${gColor(s.grade)}50` }} />
                   </div>
                 </div>
               ))}
             </div>
           )}
-      </Panel>
+      </div>
     </div>
   );
 }
 
 // ─── PRO PAGE ─────────────────────────────────────────────────────
-function ProPage({ isPro, onUpgrade }) {
+function ProPage({ isPro, onUpgrade, theme: t }) {
   if (isPro) return (
     <div style={{ textAlign: "center", padding: "60px 20px" }}>
-      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "3rem", color: T.cyan, marginBottom: 12, filter: `drop-shadow(0 0 20px ${T.cyan})` }}>⚡</div>
-      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "1.2rem", fontWeight: 900, color: T.green }}>PRO ACCESS GRANTED</div>
-      <p style={{ color: T.ink2, marginTop: 8, fontSize: "0.85rem" }}>ขอบคุณที่สนับสนุน StudyFlow ครับ</p>
+      <div style={{ fontSize: 60, marginBottom: 16 }}>⚡</div>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.5rem", fontWeight: 800, color: t.green }}>คุณเป็นสมาชิก Pro แล้ว!</div>
+      <p style={{ color: t.ink2, marginTop: 8 }}>ขอบคุณที่สนับสนุน StudyFlow ครับ 🙏</p>
     </div>
   );
   return (
-    <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <Label color={T.ink3} style={{ display: "block", marginBottom: 6 }}>SYSTEM UPGRADE</Label>
-      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "1.5rem", fontWeight: 900, marginBottom: 20 }}>
-        PRO <span style={{ color: T.cyan }}>ACCESS</span>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, maxWidth: 560, marginBottom: 20 }}>
-        {[["49฿", "PER MONTH", T.cyan], ["399฿", "PER YEAR — SAVE 32%", T.green]].map(([p, l, c]) => (
-          <Panel key={l} style={{ padding: 24, border: `1px solid ${c}30`, cursor: "pointer" }} onClick={onUpgrade}>
-            <Label color={c}>{l}</Label>
-            <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "2.5rem", color: c, margin: "10px 0 4px", filter: `drop-shadow(0 0 10px ${c})` }}>{p}</div>
-            <Btn variant={c === T.cyan ? "primary" : "ghost"} fullWidth style={{ marginTop: 12 }}>SELECT PLAN</Btn>
-          </Panel>
+    <div style={{ animation: "fadeUp 0.3s ease" }}>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: "1.6rem", fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 }}>⚡ Pro Access</div>
+      <div style={{ color: t.ink2, fontSize: "0.82rem", marginBottom: 24 }}>ปลดล็อคทุกฟีเจอร์ ไม่มีข้อจำกัด</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, maxWidth: 560, marginBottom: 24 }}>
+        {[["49฿", "ต่อเดือน", t.accent, false], ["399฿", "ต่อปี · ประหยัด 32%", t.green, true]].map(([price, period, color, popular]) => (
+          <div key={period} className="card-hover" style={{ background: t.card, border: `2px solid ${popular ? color : t.border}`, borderRadius: 16, padding: 24, cursor: "pointer", position: "relative", boxShadow: popular ? `0 8px 32px ${color}20` : t.shadow, transition: "all 0.2s" }} onClick={onUpgrade}>
+            {popular && <div style={{ position: "absolute", top: -12, left: "50%", transform: "translateX(-50%)", background: color, color: "#fff", fontSize: "0.62rem", fontWeight: 700, padding: "3px 12px", borderRadius: 99, whiteSpace: "nowrap" }}>ประหยัดสุด</div>}
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: "2.5rem", fontWeight: 500, color, marginBottom: 4 }}>{price}</div>
+            <div style={{ fontSize: "0.78rem", color: t.ink2, marginBottom: 20 }}>{period}</div>
+            <Btn variant={popular ? "pro" : "ghost"} fullWidth style={{ borderRadius: 10, borderColor: popular ? "transparent" : t.border, color: popular ? "#fff" : t.ink2 }}>เลือกแผนนี้</Btn>
+          </div>
         ))}
       </div>
-      <Panel style={{ padding: 20, maxWidth: 560 }}>
-        <Label color={T.ink2} style={{ display: "block", marginBottom: 12 }}>PRO CAPABILITIES</Label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {[["✨","AI STUDY COACH","Neural analysis"], ["📚","UNLIMITED SUBJECTS","Free: 5 only"], ["✅","UNLIMITED TASKS","Free: 10 only"], ["📊","DEEP ANALYTICS","Weekly/monthly"], ["📄","PDF EXPORT","Full reports"], ["🔔","AUTO ALERTS","Deadline warnings"]].map(([icon, title, sub]) => (
-            <div key={title} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${T.border}`, borderRadius: 2, background: "rgba(0,200,255,0.02)" }}>
+
+      <div style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 16, padding: 20, maxWidth: 560, boxShadow: t.shadow }}>
+        <div style={{ fontWeight: 700, marginBottom: 14, fontSize: "0.95rem" }}>Pro ได้อะไรบ้าง?</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {[["✨","AI Study Coach","วิเคราะห์การเรียน"], ["📚","วิชาไม่จำกัด","Free: 5 วิชา"], ["✅","งานไม่จำกัด","Free: 10 งาน"], ["📊","สถิติเชิงลึก","รายสัปดาห์/เดือน"], ["📄","Export PDF","ส่งออกรายงาน"], ["🔔","แจ้งเตือน","Deadline อัตโนมัติ"]].map(([icon, title, sub]) => (
+            <div key={title} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: t.bg2, borderRadius: 10, border: `1px solid ${t.border}` }}>
               <span style={{ fontSize: 18 }}>{icon}</span>
               <div>
-                <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.7rem", color: T.ink, letterSpacing: "0.05em" }}>{title}</div>
-                <Label color={T.ink3}>{sub}</Label>
+                <div style={{ fontSize: "0.82rem", fontWeight: 600, color: t.ink }}>{title}</div>
+                <div style={{ fontSize: "0.68rem", color: t.ink2 }}>{sub}</div>
               </div>
             </div>
           ))}
         </div>
-      </Panel>
+      </div>
     </div>
   );
 }
 
-// ─── MAIN ─────────────────────────────────────────────────────────
+// ─── MAIN DASHBOARD ───────────────────────────────────────────────
 export default function Dashboard() {
   const [page, setPage] = useState("home");
   const [user, setUser] = useState(null);
   const [isPro] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [isDark, setIsDark] = useState(true);
   const navigate = useNavigate();
+  const t = isDark ? themes.dark : themes.light;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -847,130 +786,124 @@ export default function Dashboard() {
   const logout = async () => { await supabase.auth.signOut(); navigate("/"); };
 
   const nav = [
-    { id: "home",  icon: "⬡", label: "COMMAND" },
-    { id: "timer", icon: "◎", label: "FOCUS" },
-    { id: "tasks", icon: "≡", label: "MISSIONS" },
-    { id: "gpa",   icon: "◈", label: "ANALYTICS" },
-    { id: "pro",   icon: "⚡", label: "PRO" },
+    { id: "home",  icon: "🏠", label: "หน้าหลัก" },
+    { id: "timer", icon: "⏱", label: "จับเวลา" },
+    { id: "tasks", icon: "✅", label: "งาน" },
+    { id: "gpa",   icon: "🎯", label: "GPA" },
+    { id: "pro",   icon: "⚡", label: "Pro" },
   ];
 
   const pages = {
-    home:  <Home user={user} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />,
-    timer: <TimerPage />,
-    tasks: <TasksPage isPro={isPro} />,
-    gpa:   <GPAPage isPro={isPro} />,
-    pro:   <ProPage isPro={isPro} onUpgrade={() => setShowUpgrade(true)} />,
+    home:  <Home user={user} isPro={isPro} onUpgrade={() => setShowUpgrade(true)} theme={t} />,
+    timer: <TimerPage theme={t} />,
+    tasks: <TasksPage isPro={isPro} onUpgrade={() => setShowUpgrade(true)} theme={t} />,
+    gpa:   <GPAPage isPro={isPro} onUpgrade={() => setShowUpgrade(true)} theme={t} />,
+    pro:   <ProPage isPro={isPro} onUpgrade={() => setShowUpgrade(true)} theme={t} />,
   };
 
   if (!user) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: T.void, flexDirection: "column", gap: 16 }}>
-      <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "0.7rem", color: T.cyan, letterSpacing: "0.3em", animation: "pulse-dot 1s ease infinite" }}>INITIALIZING SYSTEM...</div>
-      <div style={{ width: 32, height: 32, borderRadius: "50%", border: `2px solid ${T.cyan}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: themes.dark.bg, flexDirection: "column", gap: 16 }}>
+      <div style={{ width: 36, height: 36, borderRadius: "50%", border: `3px solid ${themes.dark.accent}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
+      <div style={{ fontSize: "0.82rem", color: themes.dark.ink2 }}>กำลังโหลด...</div>
     </div>
   );
 
   return (
     <>
-      <style>{CSS}</style>
-      <Scanline />
-      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
+      <style>{getCSS(t)}</style>
+      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} theme={t} />}
 
-      {/* BG */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none",
-        background: `radial-gradient(ellipse 70% 50% at 15% 30%, rgba(0,200,255,0.04) 0%, transparent 60%), radial-gradient(ellipse 50% 60% at 85% 70%, rgba(123,47,255,0.04) 0%, transparent 60%)`,
-      }}>
-        {/* Grid lines */}
-        <div style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(${T.border} 1px, transparent 1px), linear-gradient(90deg, ${T.border} 1px, transparent 1px)`, backgroundSize: "60px 60px", opacity: 0.4 }} />
-      </div>
+      {/* Subtle bg */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none", background: isDark ? `radial-gradient(ellipse 80% 50% at 20% 20%, rgba(99,102,241,0.05) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(168,85,247,0.04) 0%, transparent 60%)` : "none" }} />
 
-      <div style={{ display: "flex", height: "100vh", overflow: "hidden", position: "relative", zIndex: 1 }}>
+      <div style={{ display: "flex", height: "100vh", overflow: "hidden", position: "relative", zIndex: 1, background: t.bg }}>
 
         {/* Sidebar */}
-        <div className="sidebar-nav" style={{ width: 220, background: "rgba(2,4,8,0.95)", borderRight: `1px solid ${T.border}`, padding: "20px 12px", flexDirection: "column", gap: 2, flexShrink: 0 }}>
+        <div className="sidebar" style={{ width: 240, background: isDark ? "rgba(15,17,23,0.98)" : t.card, borderRight: `1px solid ${t.border}`, padding: "20px 14px", flexDirection: "column", gap: 3, flexShrink: 0, boxShadow: isDark ? "4px 0 24px rgba(0,0,0,0.3)" : t.shadow }}>
 
           {/* Brand */}
-          <div style={{ padding: "12px 8px 20px", borderBottom: `1px solid ${T.border}`, marginBottom: 12 }}>
-            <Label color={T.ink3} style={{ display: "block", marginBottom: 4 }}>SYSTEM CORE</Label>
-            <div style={{ fontFamily: "'Orbitron', monospace", fontSize: "1rem", fontWeight: 900, color: T.ink, letterSpacing: "0.05em" }}>
-              STUDY<span style={{ color: T.cyan }}>FLOW</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-              <Dot color={T.green} />
-              <Label color={T.green}>v1.0 · ONLINE</Label>
+          <div style={{ padding: "12px 10px 20px", borderBottom: `1px solid ${t.border}`, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: `linear-gradient(135deg, ${t.accent}, #a855f7)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, boxShadow: `0 4px 16px ${t.accentGlow}` }}>📚</div>
+              <div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: "1rem", color: t.ink, letterSpacing: "-0.02em" }}>StudyFlow</div>
+                <div style={{ fontSize: "0.6rem", color: t.ink2 }}>v1.0 · AI-Powered</div>
+              </div>
             </div>
           </div>
 
-          {/* Nav */}
+          {/* Nav items */}
           {nav.map(n => (
-            <button key={n.id} onClick={() => setPage(n.id)} style={{
+            <button key={n.id} onClick={() => setPage(n.id)} className="nav-btn" style={{
               display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-              borderRadius: 2, cursor: "pointer", border: "none", width: "100%", textAlign: "left",
-              background: page === n.id ? T.cyanDim : "transparent",
-              color: page === n.id ? T.cyan : n.id === "pro" ? T.amber : T.ink2,
-              fontFamily: "'Share Tech Mono', monospace", fontWeight: 400, fontSize: "0.72rem",
-              letterSpacing: "0.1em",
-              borderLeft: `2px solid ${page === n.id ? T.cyan : "transparent"}`,
-              boxShadow: page === n.id ? `inset 0 0 20px ${T.cyanDim}` : "none",
+              borderRadius: 12, cursor: "pointer", border: "none", width: "100%", textAlign: "left",
+              background: page === n.id ? t.accentLight : "transparent",
+              color: page === n.id ? t.accent : n.id === "pro" ? t.yellow : t.ink2,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontWeight: page === n.id ? 600 : 500, fontSize: "0.85rem",
               transition: "all 0.15s",
             }}>
-              <span style={{ fontSize: "1rem", width: 20, textAlign: "center", color: page === n.id ? T.cyan : T.ink3 }}>{n.icon}</span>
+              <span style={{ width: 22, textAlign: "center" }}>{n.icon}</span>
               {n.label}
-              {n.id === "pro" && !isPro && <span style={{ marginLeft: "auto", fontSize: "0.55rem", color: T.amber, border: `1px solid ${T.amber}40`, padding: "1px 6px" }}>NEW</span>}
-              {page === n.id && <div style={{ marginLeft: "auto", width: 4, height: 4, background: T.cyan, boxShadow: `0 0 6px ${T.cyan}` }} />}
+              {n.id === "pro" && !isPro && <span style={{ marginLeft: "auto", fontSize: "0.58rem", color: t.yellow, background: t.yellowLight, padding: "2px 7px", borderRadius: 99, fontWeight: 700 }}>NEW</span>}
+              {page === n.id && <div style={{ marginLeft: "auto", width: 5, height: 5, borderRadius: "50%", background: t.accent, boxShadow: `0 0 8px ${t.accent}` }} />}
             </button>
           ))}
 
-          {/* User */}
-          <div style={{ marginTop: "auto", paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
-            <div style={{ padding: "10px 12px", border: `1px solid ${T.border}`, borderRadius: 2, marginBottom: 8, background: "rgba(0,200,255,0.02)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 2, background: T.cyanDim, border: `1px solid ${T.borderHi}`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Share Tech Mono', monospace", fontSize: "0.8rem", color: T.cyan }}>
-                  {(user?.email || "U").charAt(0).toUpperCase()}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", color: T.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {user?.user_metadata?.full_name || user?.email?.split("@")[0]}
-                  </div>
-                  <Label color={isPro ? T.cyan : T.ink3}>{isPro ? "PRO ACCESS" : "FREE TIER"}</Label>
-                </div>
+          {/* Bottom */}
+          <div style={{ marginTop: "auto", paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
+            {/* Theme toggle */}
+            <button onClick={() => setIsDark(d => !d)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, border: `1px solid ${t.border}`, background: "transparent", cursor: "pointer", width: "100%", marginBottom: 8, color: t.ink2, fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "0.82rem", fontWeight: 500 }}>
+              <span>{isDark ? "☀️" : "🌙"}</span>
+              {isDark ? "Light Mode" : "Dark Mode"}
+              <div style={{ marginLeft: "auto", width: 32, height: 18, borderRadius: 99, background: isDark ? t.accent : t.border, position: "relative", transition: "background 0.2s" }}>
+                <div style={{ position: "absolute", top: 2, left: isDark ? 16 : 2, width: 14, height: 14, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} />
+              </div>
+            </button>
+
+            {/* User */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 12, background: t.bg2, border: `1px solid ${t.border}`, marginBottom: 8 }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${t.accent}, #a855f7)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8rem", fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+                {(user?.email || "U").charAt(0).toUpperCase()}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: "0.78rem", color: t.ink, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.user_metadata?.full_name || user?.email?.split("@")[0]}</div>
+                <div style={{ fontSize: "0.62rem", color: isPro ? t.accent : t.ink2, fontWeight: 600 }}>{isPro ? "⚡ PRO" : "FREE"}</div>
               </div>
             </div>
-            {!isPro && (
-              <Btn variant="pro" fullWidth onClick={() => setShowUpgrade(true)} style={{ marginBottom: 6, padding: "8px 12px", fontSize: "0.68rem" }}>
-                ⚡ UPGRADE TO PRO
-              </Btn>
-            )}
-            <button onClick={logout} style={{ width: "100%", padding: "8px 12px", borderRadius: 2, border: `1px solid rgba(255,45,85,0.2)`, background: "rgba(255,45,85,0.05)", color: T.red, cursor: "pointer", fontFamily: "'Share Tech Mono', monospace", fontSize: "0.65rem", letterSpacing: "0.1em" }}>
-              [ LOGOUT ]
-            </button>
+
+            {!isPro && <Btn variant="pro" fullWidth onClick={() => setShowUpgrade(true)} style={{ marginBottom: 8, borderRadius: 12, fontSize: "0.78rem" }}>⚡ อัปเกรด Pro</Btn>}
+            <Btn variant="ghost" fullWidth onClick={logout} style={{ borderRadius: 12, fontSize: "0.78rem", color: t.red, borderColor: `${t.red}30` }}>ออกจากระบบ</Btn>
           </div>
         </div>
 
-        {/* Main */}
-        <div className="main-scroll" style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
+        {/* Main content */}
+        <div className="main-area" style={{ flex: 1, overflowY: "auto", padding: "28px 32px" }}>
           {pages[page]}
         </div>
 
-        {/* Mobile nav */}
+        {/* Mobile bottom nav */}
         <div className="bottom-nav" style={{
           position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
-          background: "rgba(2,4,8,0.97)", borderTop: `1px solid ${T.border}`,
-          padding: "8px 4px 12px", justifyContent: "space-around", alignItems: "center",
+          background: isDark ? "rgba(15,17,23,0.98)" : t.card,
+          borderTop: `1px solid ${t.border}`,
+          padding: "8px 4px 12px",
+          justifyContent: "space-around", alignItems: "center",
+          backdropFilter: "blur(20px)",
         }}>
           {nav.map(n => (
             <button key={n.id} onClick={() => setPage(n.id)} style={{
               flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
               background: "none", border: "none", cursor: "pointer", padding: "6px 4px",
-              color: page === n.id ? T.cyan : T.ink3,
-              fontFamily: "'Share Tech Mono', monospace",
+              color: page === n.id ? t.accent : t.ink2,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
             }}>
-              <span style={{ fontSize: "1.1rem" }}>{n.icon}</span>
-              <span style={{ fontSize: "0.5rem", letterSpacing: "0.08em" }}>{n.label}</span>
-              {page === n.id && <div style={{ width: 3, height: 3, borderRadius: "50%", background: T.cyan, boxShadow: `0 0 6px ${T.cyan}` }} />}
+              <span style={{ fontSize: "1.2rem" }}>{n.icon}</span>
+              <span style={{ fontSize: "0.58rem", fontWeight: page === n.id ? 700 : 400 }}>{n.label}</span>
+              {page === n.id && <div style={{ width: 4, height: 4, borderRadius: "50%", background: t.accent, boxShadow: `0 0 6px ${t.accent}` }} />}
             </button>
           ))}
         </div>
-
       </div>
     </>
   );
